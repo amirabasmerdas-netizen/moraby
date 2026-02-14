@@ -1,128 +1,151 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, Text, JSON, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
-import json
-import os
+import logging
 
-Base = declarative_base()
-
-class User(Base):
-    __tablename__ = 'users'
-    
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, unique=True, nullable=False)
-    username = Column(String(100))
-    first_name = Column(String(100))
-    last_name = Column(String(100))
-    registered_at = Column(DateTime, default=datetime.utcnow)
-    settings = Column(JSON, default={})
-    fitness_level = Column(String(20), default='مبتدی')
-    total_workouts = Column(Integer, default=0)
-
-class WorkoutHistory(Base):
-    __tablename__ = 'workout_history'
-    
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
-    workout_date = Column(DateTime, default=datetime.utcnow)
-    workout_text = Column(Text)
-    workout_type = Column(String(50))
-    intensity = Column(String(20))
-    calories_burned = Column(Float, default=0)
-    analysis_result = Column(JSON)
-    is_saved = Column(Boolean, default=True)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self, db_url):
-        self.engine = create_engine(db_url, poolclass=NullPool)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+    def __init__(self, database_url):
+        self.database_url = database_url
+        self.init_db()
     
-    async def add_user(self, user_id, username, first_name, last_name):
-        session = self.Session()
+    def get_connection(self):
+        return psycopg2.connect(self.database_url, sslmode='require')
+    
+    def init_db(self):
+        """ایجاد جداول مورد نیاز"""
         try:
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if not user:
-                user = User(
-                    user_id=user_id,
-                    username=username,
-                    first_name=first_name,
-                    last_name=last_name,
-                    settings={
-                        'language': 'fa',
-                        'rest_reminder': True,
-                        'water_reminder': True
-                    }
+            conn = self.get_connection()
+            cur = conn.cursor()
+            
+            # جدول کاربران
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id BIGINT PRIMARY KEY,
+                    username VARCHAR(255),
+                    first_name VARCHAR(255),
+                    last_name VARCHAR(255),
+                    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fitness_level VARCHAR(50) DEFAULT 'مبتدی',
+                    last_activity TIMESTAMP
                 )
-                session.add(user)
-                session.commit()
-            return user
-        finally:
-            session.close()
-    
-    async def save_workout(self, user_id, workout_text, workout_type, intensity, calories, analysis):
-        session = self.Session()
-        try:
-            workout = WorkoutHistory(
-                user_id=user_id,
-                workout_text=workout_text,
-                workout_type=workout_type,
-                intensity=intensity,
-                calories_burned=calories,
-                analysis_result=analysis
-            )
-            session.add(workout)
+            """)
             
-            # Update user workout count
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if user:
-                user.total_workouts += 1
+            # جدول تاریخچه تمرینات
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS workout_history (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT REFERENCES users(user_id),
+                    workout_text TEXT,
+                    analysis TEXT,
+                    calories INT,
+                    intensity VARCHAR(50),
+                    workout_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (user_id)
+                )
+            """)
             
-            session.commit()
-            return workout
-        finally:
-            session.close()
+            # جدول تنظیمات کاربر
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    user_id BIGINT PRIMARY KEY REFERENCES users(user_id),
+                    language VARCHAR(10) DEFAULT 'fa',
+                    notifications BOOLEAN DEFAULT TRUE,
+                    workout_reminder_time TIME,
+                    preferred_level VARCHAR(50)
+                )
+            """)
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing database: {e}")
     
-    async def get_user_workouts(self, user_id, limit=10):
-        session = self.Session()
+    def add_user(self, user_id, username, first_name, last_name):
+        """افزودن کاربر جدید"""
         try:
-            workouts = session.query(WorkoutHistory)\
-                .filter_by(user_id=user_id)\
-                .order_by(WorkoutHistory.workout_date.desc())\
-                .limit(limit)\
-                .all()
-            return workouts
-        finally:
-            session.close()
-    
-    async def get_user_settings(self, user_id):
-        session = self.Session()
-        try:
-            user = session.query(User).filter_by(user_id=user_id).first()
-            return user.settings if user else {}
-        finally:
-            session.close()
-    
-    async def update_user_settings(self, user_id, settings):
-        session = self.Session()
-        try:
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if user:
-                user.settings.update(settings)
-                session.commit()
+            conn = self.get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO users (user_id, username, first_name, last_name, last_activity)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE SET
+                last_activity = EXCLUDED.last_activity
+            """, (user_id, username, first_name, last_name, datetime.now()))
+            
+            # ایجاد تنظیمات پیش‌فرض
+            cur.execute("""
+                INSERT INTO user_settings (user_id)
+                VALUES (%s)
+                ON CONFLICT (user_id) DO NOTHING
+            """, (user_id,))
+            
+            conn.commit()
+            cur.close()
+            conn.close()
             return True
-        finally:
-            session.close()
+        except Exception as e:
+            logger.error(f"Error adding user: {e}")
+            return False
     
-    async def update_fitness_level(self, user_id, level):
-        session = self.Session()
+    def save_workout(self, user_id, workout_text, analysis, calories, intensity):
+        """ذخیره تمرین در تاریخچه"""
         try:
-            user = session.query(User).filter_by(user_id=user_id).first()
-            if user:
-                user.fitness_level = level
-                session.commit()
+            conn = self.get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO workout_history (user_id, workout_text, analysis, calories, intensity)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (user_id, workout_text, analysis, calories, intensity))
+            
+            # به‌روزرسانی آخرین فعالیت کاربر
+            cur.execute("""
+                UPDATE users SET last_activity = %s WHERE user_id = %s
+            """, (datetime.now(), user_id))
+            
+            conn.commit()
+            cur.close()
+            conn.close()
             return True
-        finally:
-            session.close()
+        except Exception as e:
+            logger.error(f"Error saving workout: {e}")
+            return False
+    
+    def get_user_history(self, user_id, limit=10):
+        """دریافت تاریخچه تمرینات کاربر"""
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT * FROM workout_history 
+                WHERE user_id = %s 
+                ORDER BY workout_date DESC 
+                LIMIT %s
+            """, (user_id, limit))
+            history = cur.fetchall()
+            cur.close()
+            conn.close()
+            return history
+        except Exception as e:
+            logger.error(f"Error getting history: {e}")
+            return []
+    
+    def update_user_level(self, user_id, level):
+        """به‌روزرسانی سطح کاربر"""
+        try:
+            conn = self.get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE users SET fitness_level = %s WHERE user_id = %s
+            """, (level, user_id))
+            conn.commit()
+            cur.close()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user level: {e}")
+            return False
