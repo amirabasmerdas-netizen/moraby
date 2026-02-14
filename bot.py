@@ -1,7 +1,9 @@
 import logging
 import os
+import json
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ParseMode, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.executor import start_webhook
 from aiohttp import web
 from dotenv import load_dotenv
 
@@ -15,6 +17,8 @@ logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv('BOT_TOKEN', '7884677676:AAGBd1i_MU80j0nH8NWmFTRnGlL-62NfTf0')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL', 'https://moraby.onrender.com')
 WEBHOOK_PATH = '/webhook'
+WEBAPP_HOST = '0.0.0.0'
+WEBAPP_PORT = int(os.getenv('PORT', 8080))
 
 # Initialize bot and dispatcher
 bot = Bot(token=BOT_TOKEN)
@@ -78,12 +82,19 @@ async def guide(message: types.Message):
 async def echo(message: types.Message):
     await message.reply(f"شما گفتید: {message.text}")
 
-# Webhook handler
+# Webhook handler - اصلاح شده
 async def webhook_handler(request):
     try:
-        update = await request.json()
-        logging.info(f"📩 دریافت آپدیت: {update.get('update_id')}")
+        # دریافت داده به صورت JSON
+        data = await request.json()
+        logging.info(f"📩 دریافت داده: {data.get('update_id')}")
+        
+        # تبدیل دیکشنری به شیء Update
+        update = types.Update(**data)
+        
+        # پردازش آپدیت
         await dp.process_update(update)
+        
         return web.Response(text="OK", status=200)
     except Exception as e:
         logging.error(f"❌ خطا: {e}")
@@ -98,10 +109,12 @@ async def handle_root(request):
 
 # Startup function
 async def on_startup(app):
-    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
-    logging.info(f"✅ Webhook تنظیم شد: {WEBHOOK_URL + WEBHOOK_PATH}")
+    # تنظیم webhook
+    webhook_url = WEBHOOK_URL + WEBHOOK_PATH
+    await bot.set_webhook(webhook_url)
+    logging.info(f"✅ Webhook تنظیم شد: {webhook_url}")
     
-    # Get webhook info
+    # دریافت اطلاعات webhook
     webhook_info = await bot.get_webhook_info()
     logging.info(f"📊 اطلاعات Webhook: {webhook_info}")
 
@@ -122,9 +135,11 @@ if __name__ == '__main__':
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     
-    # Get port from environment
-    PORT = int(os.getenv('PORT', 8080))
+    logging.info(f"🚀 شروع سرور روی پورت {WEBAPP_PORT}")
     
     # Start web server
-    logging.info(f"🚀 شروع سرور روی پورت {PORT}")
-    web.run_app(app, host='0.0.0.0', port=PORT)
+    web.run_app(
+        app,
+        host=WEBAPP_HOST,
+        port=WEBAPP_PORT
+    )
