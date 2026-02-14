@@ -1,216 +1,211 @@
 import re
 import math
 from typing import Dict, List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WorkoutAnalyzer:
     def __init__(self):
-        self.exercise_database = {
-            'دراز نشست': {'type': 'قدرتی', 'category': 'مرکزی', 'difficulty': 3, 'calories_per_rep': 0.3},
-            'شنا': {'type': 'قدرتی', 'category': 'بالاتنه', 'difficulty': 4, 'calories_per_rep': 0.5},
-            'اسکات': {'type': 'قدرتی', 'category': 'پایین تنه', 'difficulty': 5, 'calories_per_rep': 0.8},
-            'طناب': {'type': 'هوازی', 'category': 'تمام بدن', 'difficulty': 6, 'calories_per_minute': 10},
-            'برپی': {'type': 'هوازی', 'category': 'تمام بدن', 'difficulty': 8, 'calories_per_rep': 1.5},
-            'لانگز': {'type': 'قدرتی', 'category': 'پایین تنه', 'difficulty': 4, 'calories_per_rep': 0.7},
-            'پلانک': {'type': 'قدرتی', 'category': 'مرکزی', 'difficulty': 5, 'calories_per_minute': 5},
-            'دوچرخه': {'type': 'هوازی', 'category': 'پایین تنه', 'difficulty': 5, 'calories_per_minute': 8},
-            'کرانچ': {'type': 'قدرتی', 'category': 'مرکزی', 'difficulty': 2, 'calories_per_rep': 0.2},
-            'پشت بازو': {'type': 'قدرتی', 'category': 'بالاتنه', 'difficulty': 3, 'calories_per_rep': 0.4},
+        self.exercise_categories = {
+            "قدرتی": ["شنا", "دراز نشست", "اسکات", "پرس سینه", "پشت بازو", "جلو بازو", "ددلیفت", "بارفیکس"],
+            "هوازی": ["دویدن", "طناب", "پرش", "دوچرخه", "شناوری", "پله"],
+            "مرکزی": ["پلانک", "کرانچ", "پروانه", "کوهنوردی", "پل باسن"],
+            "کششی": ["کشش", "یوگا", "حرکت کششی", "نرمش"]
         }
         
+        self.difficulty_levels = {
+            "مبتدی": {"min_volume": 0, "max_volume": 50},
+            "متوسط": {"min_volume": 51, "max_volume": 100},
+            "حرفه‌ای": {"min_volume": 101, "max_volume": 999}
+        }
+    
     def parse_workout(self, text: str) -> List[Dict]:
-        """Parse user input and extract exercises"""
+        """پارس کردن متن تمرین و استخراج حرکات"""
         exercises = []
         lines = text.strip().split('\n')
         
         for line in lines:
-            # Patterns: exercise=value or exercise=value unit
+            line = line.strip()
+            if not line:
+                continue
+            
+            # تشخیص الگوهای مختلف
             patterns = [
-                r'([\u0600-\u06FF\s]+)=(\d+)\s*(دقیقه|ثانیه)?',
-                r'([\u0600-\u06FF\s]+):\s*(\d+)\s*(دقیقه|ثانیه)?',
-                r'([\u0600-\u06FF\s]+)\s+(\d+)\s*(تکرار|دقیقه|ثانیه)?'
+                r'([\u0600-\u06FF\s]+)[=:](\d+)(?:\s*(دقیقه|ثانیه|تکرار|بار))?',
+                r'([\u0600-\u06FF\s]+)\s+(\d+)\s*(دقیقه|ثانیه|تکرار|بار)?',
+                r'طناب\s*=\s*(\d+)\s*(دقیقه)',
             ]
             
             for pattern in patterns:
                 match = re.search(pattern, line)
                 if match:
-                    exercise_name = match.group(1).strip()
+                    name = match.group(1).strip()
                     value = int(match.group(2))
-                    unit = match.group(3) if len(match.groups()) > 2 else None
-                    
-                    # Find best matching exercise in database
-                    exercise_key = self._find_exercise(exercise_name)
+                    unit = match.group(3) if len(match.groups()) > 2 else 'تکرار'
                     
                     exercises.append({
-                        'name': exercise_key or exercise_name,
+                        'name': name,
                         'value': value,
-                        'unit': unit,
-                        'original_name': exercise_name
+                        'unit': unit if unit else 'تکرار',
+                        'category': self._get_category(name)
                     })
                     break
         
         return exercises
     
-    def _find_exercise(self, name: str) -> str:
-        """Find closest matching exercise in database"""
-        for exercise in self.exercise_database:
-            if exercise in name or name in exercise:
-                return exercise
-        return None
+    def _get_category(self, exercise_name: str) -> str:
+        """تشخیص دسته تمرین"""
+        for category, exercises in self.exercise_categories.items():
+            for ex in exercises:
+                if ex in exercise_name:
+                    return category
+        return "سایر"
     
-    def analyze_workout(self, exercises: List[Dict]) -> Dict:
-        """Analyze workout and return detailed analysis"""
-        if not exercises:
-            return {'error': 'تمرینی یافت نشد'}
-        
+    def calculate_volume(self, exercises: List[Dict]) -> int:
+        """محاسبه حجم کل تمرین"""
+        total_volume = 0
+        for ex in exercises:
+            if ex['unit'] == 'دقیقه':
+                total_volume += ex['value'] * 2  # هر دقیقه معادل ۲ تکرار
+            else:
+                total_volume += ex['value']
+        return total_volume
+    
+    def calculate_calories(self, exercises: List[Dict], weight: int = 70) -> int:
+        """محاسبه کالری تقریبی مصرفی"""
         total_calories = 0
-        workout_types = []
-        muscle_groups = []
-        total_difficulty = 0
+        met_values = {
+            "قدرتی": 5.0,
+            "هوازی": 8.0,
+            "مرکزی": 3.5,
+            "کششی": 2.5,
+            "سایر": 4.0
+        }
         
         for ex in exercises:
-            ex_name = ex['name']
-            if ex_name in self.exercise_database:
-                data = self.exercise_database[ex_name]
-                workout_types.append(data['type'])
-                muscle_groups.append(data['category'])
-                
-                # Calculate calories
-                if ex['unit'] == 'دقیقه':
-                    calories = data.get('calories_per_minute', 5) * ex['value']
-                else:
-                    calories = data.get('calories_per_rep', 0.5) * ex['value']
-                
-                total_calories += calories
-                total_difficulty += data['difficulty'] * (ex['value'] / 10)
+            met = met_values.get(ex['category'], 4.0)
+            if ex['unit'] == 'دقیقه':
+                duration = ex['value']
+            else:
+                duration = ex['value'] * 0.5  # هر تکرار حدود ۰.۵ دقیقه
+            
+            calories = (met * 3.5 * weight * duration) / 200
+            total_calories += calories
         
-        # Determine workout type
-        if workout_types:
-            main_type = max(set(workout_types), key=workout_types.count)
+        return round(total_calories)
+    
+    def detect_goal(self, exercises: List[Dict], volume: int) -> str:
+        """تشخیص هدف تمرین"""
+        categories = [ex['category'] for ex in exercises]
+        
+        if "هوازی" in categories and volume > 50:
+            return "چربی‌سوزی 🔥"
+        elif "قدرتی" in categories and any(ex['value'] > 12 for ex in exercises if ex['unit'] != 'دقیقه'):
+            return "قدرتی 💪"
+        elif "مرکزی" in categories:
+            return "تقویت میان‌تنه 🎯"
+        elif volume > 100:
+            return "استقامتی ⚡"
+        elif volume < 30:
+            return "عمومی/سبک 🌱"
         else:
-            main_type = 'ترکیبی'
-        
-        # Determine intensity
-        avg_difficulty = total_difficulty / len(exercises) if exercises else 0
-        if avg_difficulty < 3:
-            intensity = 'کم'
-            level = 'مبتدی'
-        elif avg_difficulty < 6:
-            intensity = 'متوسط'
-            level = 'متوسط'
+            return "ترکیبی (چندمنظوره) 🏆"
+    
+    def estimate_difficulty(self, volume: int) -> str:
+        """تخمین سطح سختی"""
+        if volume <= 30:
+            return "مبتدی"
+        elif volume <= 70:
+            return "متوسط"
         else:
-            intensity = 'زیاد'
-            level = 'حرفه‌ای'
-        
-        # Calculate rest time
-        rest_time = self._calculate_rest_time(intensity, workout_types)
-        
-        # Check for imbalance
-        imbalance = self._check_imbalance(muscle_groups)
-        
-        # Calculate workout goal
-        goal = self._determine_goal(workout_types, intensity, total_calories)
-        
-        # Check for overtraining
-        overtraining_risk = self._check_overtraining(total_difficulty, len(exercises))
-        
-        return {
-            'exercises': exercises,
-            'workout_type': main_type,
-            'intensity': intensity,
-            'fitness_level': level,
-            'total_calories': round(total_calories, 1),
-            'muscle_groups': list(set(muscle_groups)),
-            'rest_time': rest_time,
-            'water_break': self._calculate_water_break(len(exercises)),
-            'goal': goal,
-            'imbalance': imbalance,
-            'overtraining_risk': overtraining_risk,
-            'improvement_suggestion': self._generate_improvement(exercises, main_type),
-            'recovery_version': self._generate_recovery(exercises, main_type) if intensity == 'زیاد' else None
+            return "حرفه‌ای"
+    
+    def suggest_rest_time(self, exercises: List[Dict], difficulty: str) -> int:
+        """پیشنهاد زمان استراحت"""
+        base_rest = {
+            "مبتدی": 60,
+            "متوسط": 45,
+            "حرفه‌ای": 30
         }
-    
-    def _calculate_rest_time(self, intensity: str, workout_types: List[str]) -> int:
-        """Calculate recommended rest time between exercises"""
-        if 'قدرتی' in workout_types:
-            base_rest = 60  # seconds
-        else:
-            base_rest = 30  # seconds
         
-        if intensity == 'کم':
-            return base_rest
-        elif intensity == 'متوسط':
-            return base_rest * 1.5
-        else:
-            return base_rest * 2
-    
-    def _calculate_water_break(self, num_exercises: int) -> int:
-        """Calculate when to take water breaks"""
-        return max(15, math.ceil(num_exercises / 3) * 15)  # minutes
-    
-    def _check_imbalance(self, muscle_groups: List[str]) -> str:
-        """Check if workout is imbalanced"""
-        if not muscle_groups:
-            return None
+        has_powerful = any(ex['name'] in ["اسکات", "شنا", "دراز نشست"] for ex in exercises)
+        if has_powerful:
+            base_rest[difficulty] += 15
         
-        upper_count = muscle_groups.count('بالاتنه')
-        lower_count = muscle_groups.count('پایین تنه')
-        core_count = muscle_groups.count('مرکزی')
+        return base_rest.get(difficulty, 45)
+    
+    def detect_imbalance(self, exercises: List[Dict]) -> List[str]:
+        """تشخیص عدم تعادل در تمرین"""
+        warnings = []
+        upper_body = 0
+        lower_body = 0
+        core = 0
         
-        if upper_count > lower_count * 2 and lower_count > 0:
-            return "تمرین شما بیشتر روی بالاتنه متمرکز است. پیشنهاد می‌شود تمرینات پایین تنه را نیز اضافه کنید."
-        elif lower_count > upper_count * 2 and upper_count > 0:
-            return "تمرین شما بیشتر روی پایین تنه متمرکز است. پیشنهاد می‌شود تمرینات بالاتنه را نیز اضافه کنید."
-        elif core_count == 0 and (upper_count > 0 or lower_count > 0):
-            return "تمرینات مرکزی بدن (کرانچ، پلانک) را برای تعادل بیشتر اضافه کنید."
+        upper_ex = ["شنا", "پرس", "بارفیکس", "پشت بازو", "جلو بازو"]
+        lower_ex = ["اسکات", "ددلیفت", "لانگز"]
+        core_ex = ["پلانک", "کرانچ", "دراز نشست"]
         
-        return None
+        for ex in exercises:
+            if any(u in ex['name'] for u in upper_ex):
+                upper_body += ex['value']
+            if any(l in ex['name'] for l in lower_ex):
+                lower_body += ex['value']
+            if any(c in ex['name'] for c in core_ex):
+                core += ex['value']
+        
+        if upper_body > 0 and lower_body == 0:
+            warnings.append("تمرین فقط بالاتنه - بهتره حرکات پایین‌تنه هم اضافه کنی")
+        if lower_body > 0 and upper_body == 0:
+            warnings.append("تمرین فقط پایین‌تنه - بهتره حرکات بالاتنه هم اضافه کنی")
+        if core == 0:
+            warnings.append("هیچ حرکت مرکزی نداری - پیشنهاد می‌کنم پلانک یا کرانچ اضافه کنی")
+        
+        return warnings
     
-    def _determine_goal(self, workout_types: List[str], intensity: str, calories: float) -> str:
-        """Determine the likely goal of the workout"""
-        if calories > 300:
-            return "چربی‌سوزی"
-        elif 'قدرتی' in workout_types and intensity == 'زیاد':
-            return "افزایش قدرت"
-        elif 'هوازی' in workout_types and workout_types.count('هوازی') > len(workout_types)/2:
-            return "استقامتی"
-        elif intensity == 'کم':
-            return "حفظ سلامتی و فعال ماندن"
-        else:
-            return "ترکیبی (چربی‌سوزی و قدرتی)"
-    
-    def _check_overtraining(self, difficulty: float, num_exercises: int) -> str:
-        """Check for overtraining risk"""
-        if difficulty > 50 or num_exercises > 10:
-            return "⚠️ خطر تمرین بیش از حد! به بدن خود استراحت کافی بدهید."
-        elif difficulty > 30 or num_exercises > 6:
-            return "⚠️ حجم تمرین نسبتاً بالاست. به علائم خستگی توجه کنید."
-        return None
-    
-    def _generate_improvement(self, exercises: List[Dict], workout_type: str) -> str:
-        """Generate improvement suggestions"""
+    def suggest_improvement(self, exercises: List[Dict], difficulty: str) -> str:
+        """پیشنهاد بهبود تمرین"""
         suggestions = []
         
-        # Add compound movement if missing
-        has_compound = any(ex['name'] in ['اسکات', 'شنا', 'برپی'] for ex in exercises)
-        if not has_compound:
-            suggestions.append("اضافه کردن یک حرکت ترکیبی مانند اسکات یا شنا")
+        # پیشنهاد افزایش تنوع
+        categories = set(ex['category'] for ex in exercises)
+        if len(categories) < 2:
+            suggestions.append("برای نتیجه بهتر، تمرینات متنوع‌تری انجام بده")
         
-        # Progressive overload
-        suggestions.append("افزایش تدریجی تعداد تکرارها یا ست‌ها در هفته")
+        # پیشنهاد افزایش حجم
+        if difficulty == "مبتدی":
+            suggestions.append("می‌تونی هر هفته ۱۰٪ به تعداد تکرارها اضافه کنی")
+        elif difficulty == "متوسط":
+            suggestions.append("اضافه کردن وزنه یا افزایش تعداد ست‌ها رو در نظر بگیر")
         
-        # Variation
-        if workout_type == 'قدرتی':
-            suggestions.append("تنوع در زاویه و نوع حرکات برای درگیری بیشتر عضلات")
+        # پیشنهاد تنظیم زمان
+        if any(ex['unit'] == 'دقیقه' for ex in exercises):
+            suggestions.append("تمرینات هوازی رو می‌تونی به صورت اینتروال انجام بدی")
         
-        return " - ".join(suggestions[:2])
+        return "\n".join(suggestions) if suggestions else "تمرین خوبی داری! ادامه بده"
     
-    def _generate_recovery(self, exercises: List[Dict], workout_type: str) -> str:
-        """Generate recovery version for intense workouts"""
-        recovery_exercises = []
-        for ex in exercises[:3]:  # Take first 3 exercises
-            recovery_exercises.append(f"{ex['name']}: {max(5, ex['value']//2)} تکرار")
+    def check_overtraining(self, exercises: List[Dict], user_level: str) -> List[str]:
+        """بررسی تمرین بیش از حد"""
+        warnings = []
+        volume = self.calculate_volume(exercises)
         
-        recovery_text = "نسخه ریکاوری: " + " - ".join(recovery_exercises)
-        recovery_text += "\n💧 تمرین سبک‌تر با ۵۰٪ حجم و استراحت بیشتر بین ست‌ها"
+        max_volumes = {
+            "مبتدی": 50,
+            "متوسط": 100,
+            "حرفه‌ای": 200
+        }
         
-        return recovery_text
+        max_vol = max_volumes.get(user_level, 50)
+        
+        if volume > max_vol:
+            warnings.append(f"⚠ حجم تمرین بالاست! برای سطح {user_level}، حجم مناسب حداکثر {max_vol} هست")
+        
+        # بررسی حرکات سنگین متوالی
+        consecutive_hard = 0
+        for ex in exercises:
+            if ex['value'] > 20 and ex['unit'] == 'تکرار':
+                consecutive_hard += 1
+                if consecutive_hard > 3:
+                    warnings.append("چند حرکت سنگین پشت سر هم داری - به بدنت استراحت بده")
+        
+        return warnings
