@@ -271,4 +271,174 @@ async_tutorial(message: types.Message):
 • حین تمرین: هر ۱۵ دقیقه ۲۰۰ میلی‌لیتر
 • بعد تمرین: ۵۰۰ میلی‌لیتر به ازای هر نیم‌ساعت
 """
-    await message.reply
+    await message.reply(tutorial_text, parse_mode="Markdown")
+
+# تنظیمات
+@dp.message_handler(lambda message: message.text == "⚙ تنظیمات")
+async def settings(message: types.Message):
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("🔔 اعلان‌ها", callback_data="settings_notifications"),
+        InlineKeyboardButton("📊 سطح تمرین", callback_data="settings_level"),
+        InlineKeyboardButton("🔄 بازنشانی", callback_data="settings_reset"),
+        InlineKeyboardButton("📤 خروجی", callback_data="settings_export")
+    )
+    
+    await message.reply(
+        "⚙ **تنظیمات ربات:**\n\n"
+        "از اینجا می‌تونی تنظیمات ربات رو شخصی‌سازی کنی.",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+# پاسخ به callbackهای اینلاین
+@dp.callback_query_handler(lambda c: True)
+async def inline_callbacks(callback_query: types.CallbackQuery):
+    data = callback_query.data
+    
+    if data == "make_harder":
+        await callback_query.message.answer(
+            "🔥 **نسخه سخت‌تر تمرین:**\n\n"
+            "برای دریافت نسخه سخت‌تر، لطفاً تمرین فعلیت رو با دکمه ثبت برنامه وارد کن."
+        )
+    
+    elif data == "make_easier":
+        await callback_query.message.answer(
+            "🧊 **نسخه سبک‌تر تمرین:**\n\n"
+            "برای شروع می‌تونی تعداد تکرارها رو ۲۰٪ کاهش بدی و زمان استراحت رو افزایش بدی."
+        )
+    
+    elif data == "adjust_rest":
+        keyboard = InlineKeyboardMarkup(row_width=3)
+        keyboard.add(
+            InlineKeyboardButton("۳۰ ثانیه", callback_data="rest_30"),
+            InlineKeyboardButton("۴۵ ثانیه", callback_data="rest_45"),
+            InlineKeyboardButton("۶۰ ثانیه", callback_data="rest_60"),
+            InlineKeyboardButton("۹۰ ثانیه", callback_data="rest_90"),
+            InlineKeyboardButton("۲ دقیقه", callback_data="rest_120")
+        )
+        await callback_query.message.answer(
+            "⏱ **زمان استراحت مورد نظر را انتخاب کن:**",
+            reply_markup=keyboard
+        )
+    
+    elif data == "save_workout":
+        await callback_query.message.answer(
+            "✅ تمرین با موفقیت در تاریخچه شما ذخیره شد!"
+        )
+    
+    elif data == "export_pdf":
+        await callback_query.message.answer(
+            "📤 در حال آماده‌سازی PDF... لطفاً صبر کنید."
+        )
+    
+    elif data == "rewrite_pro":
+        await callback_query.message.answer(
+            "🔄 در حال بازنویسی حرفه‌ای تمرین..."
+        )
+    
+    # پاسخ به تنظیمات استراحت
+    elif data.startswith("rest_"):
+        time = data.split("_")[1]
+        await callback_query.message.answer(
+            f"✅ زمان استراحت روی {time} ثانیه تنظیم شد.\n\n"
+            f"به یاد داشته باش که بین ستها هم {time} ثانیه استراحت کنی."
+        )
+    
+    # پاسخ به برنامه‌های هفتگی
+    elif data.startswith("plan_"):
+        plan_type = data.split("_")[1]
+        plans = {
+            "fatloss": "🔥 **برنامه چربی‌سوزی هفتگی:**\n\n"
+                      "شنبه: هوازی ۴۵ دقیقه + کرانچ\n"
+                      "یک‌شنبه: تمرین قدرتی تمام بدن\n"
+                      "دوشنبه: استراحت یا یوگا\n"
+                      "سه‌شنبه: اینتروال ۳۰ دقیقه\n"
+                      "چهارشنبه: تمرین قدرتی میان‌تنه\n"
+                      "پنج‌شنبه: هوازی ۶۰ دقیقه\n"
+                      "جمعه: استراحت فعال",
+            
+            "strength": "💪 **برنامه افزایش قدرت هفتگی:**\n\n"
+                        "شنبه: سینه و پشت بازو\n"
+                        "یک‌شنبه: پا و سرشانه\n"
+                        "دوشنبه: استراحت\n"
+                        "سه‌شنبه: پشت و جلو بازو\n"
+                        "چهارشنبه: پا و سرشانه\n"
+                        "پنج‌شنبه: سینه و زیربغل\n"
+                        "جمعه: استراحت",
+            
+            "endurance": "⚡ **برنامه استقامتی هفتگی:**\n\n"
+                         "شنبه: دویدن ۵ کیلومتر\n"
+                         "یک‌شنبه: شنا ۱۰۰۰ متر\n"
+                         "دوشنبه: دوچرخه ۲۰ کیلومتر\n"
+                         "سه‌شنبه: تمرین تناوبی\n"
+                         "چهارشنبه: استراحت\n"
+                         "پنج‌شنبه: کوهنوردی\n"
+                         "جمعه: پیاده‌روی سریع",
+            
+            "mixed": "🧘 **برنامه ترکیبی هفتگی:**\n\n"
+                     "شنبه: قدرتی بالاتنه + هوازی\n"
+                     "یک‌شنبه: یوگا و کشش\n"
+                     "دوشنبه: قدرتی پایین‌تنه\n"
+                     "سه‌شنبه: اینتروال + کرانچ\n"
+                     "چهارشنبه: استراحت\n"
+                     "پنج‌شنبه: تمرین دایره‌ای\n"
+                     "جمعه: پیاده‌روی طولانی"
+        }
+        
+        await callback_query.message.answer(plans.get(plan_type, "برنامه مورد نظر یافت نشد."), parse_mode="Markdown")
+    
+    # پاسخ به تنظیمات
+    elif data.startswith("settings_"):
+        setting = data.split("_")[1]
+        if setting == "notifications":
+            await callback_query.message.answer("🔔 اعلان‌ها با موفقیت تغییر کرد!")
+        elif setting == "level":
+            keyboard = InlineKeyboardMarkup(row_width=3)
+            keyboard.add(
+                InlineKeyboardButton("مبتدی", callback_data="level_beginner"),
+                InlineKeyboardButton("متوسط", callback_data="level_intermediate"),
+                InlineKeyboardButton("حرفه‌ای", callback_data="level_advanced")
+            )
+            await callback_query.message.answer("📊 سطح تمرینی خود را انتخاب کن:", reply_markup=keyboard)
+        elif setting == "reset":
+            await callback_query.message.answer("🔄 تنظیمات به حالت پیش‌فرض بازگشت!")
+        elif setting == "export":
+            await callback_query.message.answer("📤 اطلاعات شما در حال آماده‌سازی است...")
+    
+    # پاسخ به سطوح
+    elif data.startswith("level_"):
+        level = data.split("_")[1]
+        db.update_user_level(callback_query.from_user.id, level)
+        await callback_query.message.answer(f"✅ سطح شما به {level} تغییر کرد!")
+    
+    # پاسخ به سطوح قدرت
+    elif data.startswith("strength_"):
+        level = data.split("_")[1]
+        levels = {
+            "beginner": "برنامه مبتدی: ۳ جلسه در هفته، تمرینات پایه",
+            "intermediate": "برنامه متوسط: ۴ جلسه در هفته، تمرینات ترکیبی",
+            "advanced": "برنامه حرفه‌ای: ۵ جلسه در هفته، تمرینات پیشرفته"
+        }
+        await callback_query.message.answer(f"💪 {levels.get(level, 'برنامه انتخابی')}")
+
+# راه‌اندازی وب‌هوک
+async def on_startup(dp):
+    await bot.set_webhook(WEBHOOK_URL)
+    logger.info("Webhook set successfully")
+
+async def on_shutdown(dp):
+    await bot.delete_webhook()
+    logger.info("Webhook deleted")
+
+# اجرای ربات
+if __name__ == "__main__":
+    executor.start_webhook(
+        dispatcher=dp,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host="0.0.0.0",
+        port=WEBHOOK_PORT
+    )
