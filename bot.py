@@ -241,7 +241,7 @@ async def strength_gain(message: types.Message):
 
 # راهنمای تمرین اصولی
 @dp.message_handler(lambda message: message.text == "🧠 راهنمای تمرین اصولی")
-async_tutorial(message: types.Message):
+async def tutorial(message: types.Message):
     tutorial_text = """
 🧠 **راهنمای تمرین اصولی:**
 
@@ -421,6 +421,8 @@ async def inline_callbacks(callback_query: types.CallbackQuery):
             "advanced": "برنامه حرفه‌ای: ۵ جلسه در هفته، تمرینات پیشرفته"
         }
         await callback_query.message.answer(f"💪 {levels.get(level, 'برنامه انتخابی')}")
+    
+    await callback_query.answer()
 
 # راه‌اندازی وب‌هوک
 async def on_startup(dp):
