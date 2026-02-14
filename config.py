@@ -1,7 +1,7 @@
 import os
 
 # Token ربات تلگرام
-BOT_TOKEN = "YOUR_BOT_TOKEN"  # توکن خود را اینجا وارد کنید
+BOT_TOKEN = "8564154154:AAGWvLfqMkLX2Bnh3mCDuLNkfuGKZJEws08"  # توکن خود را اینجا وارد کنید
 
 # دیتابیس PostgreSQL
 DATABASE_URL = "postgresql://workout_user:AmtTUedJyWetEtkcvcw5JUeJLnKP4YaI@dpg-d6864q248b3s73afjgo0-a/workout_db_6849"
@@ -47,3 +47,4 @@ INTENSITY_LEVELS = {
     "medium": "متوسط 🟡",
     "high": "سخت 🔴"
 }
+
