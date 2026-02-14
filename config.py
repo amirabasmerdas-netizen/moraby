@@ -1,20 +1,18 @@
 import os
 
-# Token ربات تلگرام
-BOT_TOKEN = "8564154154:AAGWvLfqMkLX2Bnh3mCDuLNkfuGKZJEws08"  # توکن خود را اینجا وارد کنید
+# Token ربات تلگرام - از محیط变量 بگیر
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8564154154:AAGWvLfqMkLX2Bnh3mCDuLNkfuGKZJEws08")
 
 # دیتابیس PostgreSQL
-DATABASE_URL = "postgresql://workout_user:AmtTUedJyWetEtkcvcw5JUeJLnKP4YaI@dpg-d6864q248b3s73afjgo0-a/workout_db_6849"
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://workout_user:AmtTUedJyWetEtkcvcw5JUeJLnKP4YaI@dpg-d6864q248b3s73afjgo0-a/workout_db_6849")
 
-# Webhook URL
-WEBHOOK_URL = "https://moraby.onrender.com/webhook"
+# Webhook URL - آدرس دقیق Render
+RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://moraby.onrender.com")
+WEBHOOK_URL = f"{RENDER_URL}/webhook"
 WEBHOOK_PATH = "/webhook"
-WEBHOOK_PORT = 10000  # پورت پیش‌فرض Render
+WEBHOOK_PORT = int(os.environ.get("PORT", 10000))
 
-# تنظیمات تحلیل تمرین
-AI_API_KEY = None  # در صورت استفاده از API هوش مصنوعی خارجی
-
-# پیام خوش‌آمدگویی
+# بقیه تنظیمات ثابت می‌مانند...
 WELCOME_MESSAGE = """
 🏋 **به AI Workout Coach Bot خوش آمدید!** 
 
