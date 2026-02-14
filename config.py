@@ -9,7 +9,7 @@ DATABASE_URL = "postgresql://workout_user:AmtTUedJyWetEtkcvcw5JUeJLnKP4YaI@dpg-d
 # Webhook URL
 WEBHOOK_URL = "https://moraby.onrender.com/webhook"
 WEBHOOK_PATH = "/webhook"
-WEBHOOK_PORT = 8443
+WEBHOOK_PORT = 10000  # پورت پیش‌فرض Render
 
 # تنظیمات تحلیل تمرین
 AI_API_KEY = None  # در صورت استفاده از API هوش مصنوعی خارجی
@@ -47,4 +47,3 @@ INTENSITY_LEVELS = {
     "medium": "متوسط 🟡",
     "high": "سخت 🔴"
 }
-
