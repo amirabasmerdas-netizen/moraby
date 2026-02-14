@@ -7,8 +7,9 @@ from aiogram.utils import executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiohttp import web
 
-from config import BOT_TOKEN, DATABASE_URL, WELCOME_MESSAGE, WEBHOOK_URL, WEBHOOK_PATH, WEBHOOK_PORT
+from config import BOT_TOKEN, DATABASE_URL, WELCOME_MESSAGE, PORT
 from database import Database
 from workout_analyzer import WorkoutAnalyzer
 from ai_analyzer import AIAnalyzer
@@ -27,6 +28,10 @@ dp.middleware.setup(LoggingMiddleware())
 db = Database(DATABASE_URL)
 workout_analyzer = WorkoutAnalyzer()
 ai_analyzer = AIAnalyzer()
+
+# ==================== تمام توابع قبلی اینجا می‌آیند ====================
+# (همه توابع start_command, register_workout, process_workout و ...)
+# دقیقاً مثل کد قبلی، بدون تغییر
 
 # تعریف حالت‌ها
 class WorkoutStates(StatesGroup):
@@ -424,65 +429,32 @@ async def inline_callbacks(callback_query: types.CallbackQuery):
     
     await callback_query.answer()
 
-# راه‌اندازی وب‌هوک
-async def on_startup(dp):
-    await bot.set_webhook(WEBHOOK_URL)
-    logger.info("Webhook set successfully")
+# ==================== قسمت جدید برای Health Check ====================
 
-async def on_shutdown(dp):
-    await bot.delete_webhook()
-    logger.info("Webhook deleted")
+async def health_check(request):
+    return web.Response(text="OK", status=200)
 
-# اجرای ربات
+async def start_health_server():
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+    logger.info(f"Health check server started on port {PORT}")
+
+async def on_startup_polling(dp):
+    await start_health_server()
+    logger.info("Bot started with polling mode")
+
+# ==================== اجرای اصلی ====================
+
 if __name__ == "__main__":
-    executor.start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        skip_updates=True,
-        host="0.0.0.0",
-        port=WEBHOOK_PORT
+    # اجرا با Polling به جای Webhook
+    executor.start_polling(
+        dp,
+        on_startup=on_startup_polling,
+        skip_updates=True
     )
-    # ... بقیه کد مثل قبل تا آخر فایل ...
-
-# راه‌اندازی وب‌هوک
-async def on_startup(dp):
-    # حذف وب‌هوک قبلی
-    await bot.delete_webhook()
-    
-    # ست کردن وب‌هوک جدید
-    webhook_url = WEBHOOK_URL
-    logger.info(f"Setting webhook to: {webhook_url}")
-    
-    try:
-        await bot.set_webhook(webhook_url)
-        webhook_info = await bot.get_webhook_info()
-        logger.info(f"Webhook info: {webhook_info}")
-    except Exception as e:
-        logger.error(f"Error setting webhook: {e}")
-    
-    logger.info("Bot started successfully")
-
-async def on_shutdown(dp):
-    await bot.delete_webhook()
-    logger.info("Webhook deleted")
-
-# اضافه کردن یک هندلر ساده برای روت اصلی
-@dp.message_handler(commands=['ping'])
-async def ping(message: types.Message):
-    await message.reply("🏓 پونگ!")
-
-# اجرای ربات
-if __name__ == "__main__":
-    # اجرا با وب‌هوک
-    executor.start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        skip_updates=True,
-        host="0.0.0.0",
-        port=WEBHOOK_PORT
-    )
-
