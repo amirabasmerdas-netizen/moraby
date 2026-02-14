@@ -1,23 +1,49 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# Token ربات تلگرام
+BOT_TOKEN = "YOUR_BOT_TOKEN"  # توکن خود را اینجا وارد کنید
 
-# Token
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+# دیتابیس PostgreSQL
+DATABASE_URL = "postgresql://workout_user:AmtTUedJyWetEtkcvcw5JUeJLnKP4YaI@dpg-d6864q248b3s73afjgo0-a/workout_db_6849"
 
-# Database
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite+aiosqlite:///workout_bot.db')
+# Webhook URL
+WEBHOOK_URL = "https://moraby.onrender.com/webhook"
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_PORT = 8443
 
-# OpenAI API (اختیاری - برای تحلیل هوشمند)
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# تنظیمات تحلیل تمرین
+AI_API_KEY = None  # در صورت استفاده از API هوش مصنوعی خارجی
 
-# Webhook settings
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-WEBHOOK_PATH = '/webhook'
-WEBAPP_HOST = '0.0.0.0'
-WEBAPP_PORT = int(os.getenv('PORT', 8080))
+# پیام خوش‌آمدگویی
+WELCOME_MESSAGE = """
+🏋 **به AI Workout Coach Bot خوش آمدید!** 
 
-# Bot settings
-BOT_USERNAME = "AIWorkoutCoachBot"
-BOT_VERSION = "1.0.0"
+من دستیار شخصی تمرینی شما هستم. کافیه تمریناتت رو برام بنویسی، من:
+✅ تحلیل حرفه‌ای انجام می‌دم
+🎯 هدف تمرین رو تشخیص می‌دم
+⏱ زمان استراحت پیشنهاد می‌دم
+📈 نسخه بهینه تمرین رو ارائه می‌دم
+
+برای شروع از دکمه‌های زیر استفاده کن 👇
+"""
+
+# واحدهای تمرینی
+EXERCISE_UNITS = {
+    "time": ["دقیقه", "ثانیه", "ساعت"],
+    "count": ["تکرار", "بار"]
+}
+
+# دسته‌بندی تمرینات
+EXERCISE_CATEGORIES = {
+    "قدرتی": ["شنا", "دراز نشست", "اسکات", "پرس", "ددلیفت", "کشش", "بارفیکس"],
+    "هوازی": ["دویدن", "طناب", "پرش", "دوچرخه", "شناوری"],
+    "مرکزی": ["پلانک", "کرانچ", "پروانه", "کوهنوردی"],
+    "کششی": ["کشش", "یوگا", "حرکات کششی"]
+}
+
+# شدت تمرین
+INTENSITY_LEVELS = {
+    "low": "آسان 🟢",
+    "medium": "متوسط 🟡",
+    "high": "سخت 🔴"
+}
