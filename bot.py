@@ -444,3 +444,45 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=WEBHOOK_PORT
     )
+    # ... بقیه کد مثل قبل تا آخر فایل ...
+
+# راه‌اندازی وب‌هوک
+async def on_startup(dp):
+    # حذف وب‌هوک قبلی
+    await bot.delete_webhook()
+    
+    # ست کردن وب‌هوک جدید
+    webhook_url = WEBHOOK_URL
+    logger.info(f"Setting webhook to: {webhook_url}")
+    
+    try:
+        await bot.set_webhook(webhook_url)
+        webhook_info = await bot.get_webhook_info()
+        logger.info(f"Webhook info: {webhook_info}")
+    except Exception as e:
+        logger.error(f"Error setting webhook: {e}")
+    
+    logger.info("Bot started successfully")
+
+async def on_shutdown(dp):
+    await bot.delete_webhook()
+    logger.info("Webhook deleted")
+
+# اضافه کردن یک هندلر ساده برای روت اصلی
+@dp.message_handler(commands=['ping'])
+async def ping(message: types.Message):
+    await message.reply("🏓 پونگ!")
+
+# اجرای ربات
+if __name__ == "__main__":
+    # اجرا با وب‌هوک
+    executor.start_webhook(
+        dispatcher=dp,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host="0.0.0.0",
+        port=WEBHOOK_PORT
+    )
+
