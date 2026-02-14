@@ -1,18 +1,14 @@
 import os
 
-# Token ربات تلگرام - از محیط变量 بگیر
+# Token ربات تلگرام
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8564154154:AAGWvLfqMkLX2Bnh3mCDuLNkfuGKZJEws08")
 
 # دیتابیس PostgreSQL
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://workout_user:AmtTUedJyWetEtkcvcw5JUeJLnKP4YaI@dpg-d6864q248b3s73afjgo0-a/workout_db_6849")
 
-# Webhook URL - آدرس دقیق Render
-RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://moraby.onrender.com")
-WEBHOOK_URL = f"{RENDER_URL}/webhook"
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_PORT = int(os.environ.get("PORT", 10000))
+# پورت برای Health Check
+PORT = int(os.environ.get("PORT", 10000))
 
-# بقیه تنظیمات ثابت می‌مانند...
 WELCOME_MESSAGE = """
 🏋 **به AI Workout Coach Bot خوش آمدید!** 
 
@@ -24,24 +20,3 @@ WELCOME_MESSAGE = """
 
 برای شروع از دکمه‌های زیر استفاده کن 👇
 """
-
-# واحدهای تمرینی
-EXERCISE_UNITS = {
-    "time": ["دقیقه", "ثانیه", "ساعت"],
-    "count": ["تکرار", "بار"]
-}
-
-# دسته‌بندی تمرینات
-EXERCISE_CATEGORIES = {
-    "قدرتی": ["شنا", "دراز نشست", "اسکات", "پرس", "ددلیفت", "کشش", "بارفیکس"],
-    "هوازی": ["دویدن", "طناب", "پرش", "دوچرخه", "شناوری"],
-    "مرکزی": ["پلانک", "کرانچ", "پروانه", "کوهنوردی"],
-    "کششی": ["کشش", "یوگا", "حرکات کششی"]
-}
-
-# شدت تمرین
-INTENSITY_LEVELS = {
-    "low": "آسان 🟢",
-    "medium": "متوسط 🟡",
-    "high": "سخت 🔴"
-}
