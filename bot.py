@@ -1,5 +1,7 @@
 import logging
 import asyncio
+import threading
+import time
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -7,12 +9,13 @@ from aiogram.utils import executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiohttp import web
+import requests
 
-from config import BOT_TOKEN, DATABASE_URL, WELCOME_MESSAGE, PORT
+from config import BOT_TOKEN, DATABASE_URL, WELCOME_MESSAGE
 from database import Database
 from workout_analyzer import WorkoutAnalyzer
 from ai_analyzer import AIAnalyzer
+from keep_alive import keep_alive, ping_self
 
 # تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
@@ -28,10 +31,6 @@ dp.middleware.setup(LoggingMiddleware())
 db = Database(DATABASE_URL)
 workout_analyzer = WorkoutAnalyzer()
 ai_analyzer = AIAnalyzer()
-
-# ==================== تمام توابع قبلی اینجا می‌آیند ====================
-# (همه توابع start_command, register_workout, process_workout و ...)
-# دقیقاً مثل کد قبلی، بدون تغییر
 
 # تعریف حالت‌ها
 class WorkoutStates(StatesGroup):
@@ -429,32 +428,27 @@ async def inline_callbacks(callback_query: types.CallbackQuery):
     
     await callback_query.answer()
 
-# ==================== قسمت جدید برای Health Check ====================
+# دستور ping برای تست
+@dp.message_handler(commands=['ping'])
+async def ping_command(message: types.Message):
+    await message.reply("🏓 پونگ! ربات فعال است.")
 
-async def health_check(request):
-    return web.Response(text="OK", status=200)
-
-async def start_health_server():
-    app = web.Application()
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logger.info(f"Health check server started on port {PORT}")
-
-async def on_startup_polling(dp):
-    await start_health_server()
-    logger.info("Bot started with polling mode")
-
-# ==================== اجرای اصلی ====================
+# راه‌اندازی
+async def on_startup(dp):
+    logger.info("Starting bot...")
 
 if __name__ == "__main__":
-    # اجرا با Polling به جای Webhook
+    # راه‌اندازی سرور Keep Alive
+    keep_alive()
+    
+    # راه‌اندازی ترد پینگ زدن به خودش
+    ping_thread = threading.Thread(target=ping_self)
+    ping_thread.daemon = True
+    ping_thread.start()
+    
+    # اجرای ربات با Polling
     executor.start_polling(
         dp,
-        on_startup=on_startup_polling,
+        on_startup=on_startup,
         skip_updates=True
     )
